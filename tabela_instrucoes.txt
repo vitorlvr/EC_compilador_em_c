@@ -1,0 +1,9 @@
+read <pos>
+write <pos>
+storeconst <value> <pos>
+add <pos> <pos>
+sub <pos> <pos>
+mul <pos> <pos>
+div <pos> <pos>
+store <pos>
+jump <pos> <offset>
