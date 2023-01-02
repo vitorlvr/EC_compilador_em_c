@@ -4,7 +4,7 @@
 #include "funcoes.h"
 
 struct fila_no {
-    char info[25]; // Vetor que armazena cada linha do txt
+    char info[30]; // Vetor que armazena cada linha do txt
     int linha; // Linha do documento salva no nó
     FilaNo* proximo;
 };
@@ -45,7 +45,6 @@ char fila_remove(Fila* f)
     f->primeiro = segundo;
     if (f->primeiro == NULL)
         f->ultimo = NULL;
-
     char valor = primeiro->info;
     free(primeiro);
     return valor;
@@ -60,7 +59,6 @@ void fila_libera(Fila *f)
         free(f_aux);
         f_aux = t;
     }
-
     free(f);
 }
 
@@ -76,35 +74,9 @@ void fila_exibe(Fila *f)
     printf("\n");
 }
 
-void remove_ultimo(Fila *comandos)
+FILE *abrir_arquivo(char *argv[])
 {
-    FilaNo *ptr = comandos->primeiro;
-    Fila *ptrF = comandos->ultimo;
-    int contador = 0;
-
-    while (1)
-    {
-        if(ptr->proximo == ptrF)
-            break;
-        contador++;
-        ptr = ptr->proximo;
-    }
-    free(ptrF);
-    comandos->ultimo = ptr;
-    comandos->ultimo->proximo = NULL;
-}
-
-FILE *abrir_arquivo()
-{
-    char diretorio[buffer_size];
-    int contador, j = 0;
-    printf("Digite o endereco do arquivo: ");
-    gets(diretorio);
-    contador = strlen(diretorio);
-    char diretorio2[contador];
-    for (int i = 0; i<contador; i++)
-        diretorio2[i] = diretorio[i];
-    FILE *arquivo = fopen(diretorio2, "r");
+    FILE *arquivo = fopen(argv[1], "r");
     
     if (arquivo == NULL)
     {
@@ -117,40 +89,86 @@ FILE *abrir_arquivo()
 
 void ler_arquivo(FILE *arquivo, Fila *comandos)
 { 
-    int i = 0, contador = 0, j = 0;
     char buffer[buffer_size];
-    for (i = 0; !feof(arquivo); i++)
+    int i = 0, j;
+    while (!feof(arquivo))
     {
-        j++;
         fgets(buffer, buffer_size, arquivo);
-        if (buffer[0]=='\n')
-            continue;
-        contador = strlen(buffer);
-        char buffer2[contador - 1];
-        for (i = 0; i<contador; i++)
-            buffer2[i] = buffer[i];
-        fila_insere(comandos, buffer2);
+        char buffer2[strlen(buffer)-1];
+        strcpy(buffer2, buffer);
+        formata_linha(buffer2, comandos);
     }
-    if (j>1)
-        remove_ultimo(comandos); // A ultima linha fica duplicada no final da fila. Por isso a necessidade de remover o ultimo nó
+}
+
+void formata_linha(char linha[], Fila *comandos)
+{
+    int i = 0, j = 0, inicio, fim;
+    char funcao[30];
+    for(i = 0; i < strlen(linha); i++)
+    {
+        while (linha[i] == ' ')
+            i++;
+        if (linha[i] == '#')
+            break;
+        else if (linha[i] == '\n')
+        {
+            funcao[j] = '\0';
+            break;
+        }
+        while (linha[i] > 32 && linha[i] < 127) // Removendo lixo
+        {
+            funcao[j] = linha[i];
+            i++;
+            j++;
+        }
+        if (linha[i] != '\0')
+        {
+            funcao[j] = 32;
+            j++;
+        }
+        if (j > buffer_size)
+            break;
+        continue;
+    }
+    funcao[j-1] = '\0';
+    char funcao2[strlen(funcao)];
+    strcpy(funcao2, funcao);
+    for (int j = 0; j < strlen(funcao2); j++)
+        if ((funcao2[j] > 32 && funcao2[j] <= 126) && strlen(funcao2) > 3)
+        {
+            fila_insere(comandos, funcao2);
+            break;
+        }
+}
+
+void enumera_linhas(Fila *comandos)
+{
+    FilaNo *ptr = comandos->primeiro;
+    int linha = 1;
+    while (ptr != NULL)
+    {
+        ptr->linha = linha;
+        linha++;
+        ptr = ptr->proximo;
+    } 
 }
 
 void analise_funcao(Fila *comandos, FILE *analise)
 {
     FilaNo *ptr = comandos->primeiro;
-    int linha = 1;
+    int linha = 1, j = 0;
 
+    enumera_linhas(comandos);
     while (ptr != NULL)
     {
-        int contador = 0, teste = 0;
-        for (int i = 0; i < 25; i++)
+        int contador = 0, i;
+        int Nlinha = ptr->linha;
+        for (i = 0; i < strlen(ptr->info); i++)
         {
-            if (ptr->info[i] != ' ' && ptr->info[i] != '\n')
-            {
+            if (ptr->info[i] > 96 && ptr->info[i] < 123)
                 contador++;
-                continue;
-            }
-            break;
+            else
+                break;
         }
         char funcao[contador];
         for (int i = 0; i < contador; i++)
@@ -159,92 +177,82 @@ void analise_funcao(Fila *comandos, FILE *analise)
         }
         if(strncmp(funcao, "read", contador) == 0) // Caso a comparação seja igual a '0', a função da linha é 'read' por exemplo
         {
-            read(ptr->info, linha, analise);
-            ptr->linha = linha;
-            ptr = ptr->proximo;
-            teste = 1;
-            linha++; // Armazenando a linha em que se encontra a função a fim de que, caso ocorra algum erro, conseguir apontar a linha
-            continue; // Próxima função
-        }
-        if(strncmp(funcao, "write", contador) == 0)
+            verifica_write_read_store(ptr->info, Nlinha, analise, "read");
+        } 
+        else if(strncmp(funcao, "write", contador) == 0)
         {
-            write(ptr->info, linha, analise);
-            ptr->linha = linha;
-            ptr = ptr->proximo;
-            teste = 1;
-            linha++;
-            continue;
+            verifica_write_read_store(ptr->info, Nlinha, analise, "write");
         }
-        if(strncmp(funcao, "storeconst", contador) == 0 && contador != 5)
+        else if(strncmp(funcao, "store", contador) == 0)
         {
-            storeconst(ptr->info, linha, analise);
-            ptr->linha = linha;
-            ptr = ptr->proximo;
-            teste = 1;
-            linha++;
-            continue;
+            verifica_write_read_store(ptr->info, Nlinha, analise, "store");
         }
-        if(strncmp(funcao, "add", contador) == 0)
+        else if(strncmp(funcao, "storeconst", contador) == 0 && contador != 5)
         {
-            add(ptr->info, linha, analise);
-            ptr->linha = linha;
-            ptr = ptr->proximo;
-            teste = 1;
-            linha++;
-            continue;
+            storeconst(ptr->info, Nlinha, analise);
         }
-        if(strncmp(funcao, "sub", contador) == 0)
+        else if(strncmp(funcao, "add", contador) == 0)
         {
-            sub(ptr->info, linha, analise);
-            ptr->linha = linha;
-            ptr = ptr->proximo;
-            teste = 1;
-            linha++;
-            continue;
+            verifica_op_aritmetica(ptr->info, Nlinha, analise, "add");
         }
-        if(strncmp(funcao, "mul", contador) == 0)
+        else if(strncmp(funcao, "sub", contador) == 0)
         {
-            multp(ptr->info, linha, analise);
-            ptr->linha = linha;
-            ptr = ptr->proximo;
-            teste = 1;
-            linha++;
-            continue;
+            verifica_op_aritmetica(ptr->info, Nlinha, analise, "sub");
         }
-        if(strncmp(funcao, "div", contador) == 0)
+        else if(strncmp(funcao, "mul", contador) == 0)
         {
-            divisao(ptr->info, linha, analise);
-            ptr->linha = linha;
-            ptr = ptr->proximo;
-            teste = 1;
-            linha++;
-            continue;
+            verifica_op_aritmetica(ptr->info, Nlinha, analise, "mult");
         }
-        if(strncmp(funcao, "store", contador) == 0)
+        else if(strncmp(funcao, "div", contador) == 0)
         {
-            fstore(ptr->info, linha, analise);
-            ptr->linha = linha;
-            ptr = ptr->proximo;
-            teste = 1;
-            linha++;
-            continue;
+            verifica_op_aritmetica(ptr->info, Nlinha, analise, "div");
         }
-        if(strncmp(funcao, "jump", contador) == 0)
+        else if(strncmp(funcao, "jump", contador) == 0)
         {
-            jump(ptr->info, linha, analise);
-            ptr->linha = linha;
-            ptr = ptr->proximo;
-            teste = 1;
-            linha++;
-            continue;
+            jump(ptr->info, Nlinha, analise, comandos);
         }
-        if(teste == 0) // Se a variável teste continuar com seu valor inicial, a função não pertence a nenhuma das préestabelecidas
+        else
         {
-            fprintf(analise, "Comando da linha %d nao reconhecido!\n", linha);
-            break;
-        }
+            fprintf(analise, "Comando da linha %d nao reconhecido!\n", Nlinha);
+        } // Armazenando a linha em que se encontra a função a fim de que, caso ocorra algum erro, conseguir apontar a linha
         ptr = ptr->proximo;
     }
+}
+
+void verifica_write_read_store(char linha[], int Nlinha, FILE *analise, char comando[])
+{
+    int resposta, parametros;
+    resposta = verifica_pos(linha, 1);
+    if (resposta == 1)
+        fprintf(analise, "Linha %d: erro no parametro 1 'pos', que deve ser um numero natural.\n", Nlinha);
+        parametros = conta_parametro(linha, 1);
+    if (parametros == 1)
+        fprintf(analise, "Linha %d: numero de parametros excedido\n", Nlinha);
+    if (parametros == -1)
+        fprintf(analise, "Linha %d: falta de parametros necessarios\n", Nlinha);
+    if(resposta == 0 && parametros == 0)
+        fprintf(analise, "Comando '%s' executado\n", comando);
+    else
+        printf("Erro no comando '%s'\n", comando);
+}
+
+void verifica_op_aritmetica(char linha[], int Nlinha, FILE *analise, char comando[])
+{
+    int resposta, parametros;
+    resposta = verifica_pos(linha, 2);
+    if (resposta == 1)
+        fprintf(analise, "Linha %d: erro no parametro 1 'pos', que deve ser um numero natural.\n", Nlinha);
+    if (resposta == 2)
+        fprintf(analise, "Linha %d: erro no parametro 2 'pos', que deve ser um numero natural.\n", Nlinha);
+        parametros = conta_parametro(linha, 2);
+    if (parametros == 1)
+        fprintf(analise, "Linha %d: numero de parametros excedido\n", Nlinha);
+    if (parametros == -1)
+        fprintf(analise, "Linha %d: falta de parametros necessarios\n", Nlinha);
+    if(resposta == 0 && parametros == 0)
+        fprintf(analise, "Comando '%s' executado\n", comando);
+    else
+        printf("Erro no comando '%s'\n", comando);
 }
 
 int verifica_value(char linha[], int quantidade) // Verificando se o número é valido
@@ -252,15 +260,16 @@ int verifica_value(char linha[], int quantidade) // Verificando se o número é 
     int inicio = 0, fim = 0, j = 0, i, tam = 0, contador = 0, resposta = 0;
     for (i = 0; i < strlen(linha); i++) // Analisando se o primeiro numero é um numero válido
     {
-        if ((linha[i] == ' ' || linha[i] == '\n') && inicio != 0)
-        {
-            fim = i;
-            break;
-        }
-        if (linha[i] == ' ')
+        if (linha[i] == ' ' && inicio == 0)
         {
             inicio = i+1;
             continue;
+        } else if (linha[i] == '-' && inicio == 0)
+            continue;
+        if (linha[i] == ' ' && inicio != 0)
+        {
+            fim = i;
+            break;
         }
     }
     tam = fim - inicio;
@@ -291,9 +300,10 @@ int verifica_value(char linha[], int quantidade) // Verificando se o número é 
 int verifica_pos(char linha[], int quantidade) // Verificando se é um número natural
 {
     int inicio = 0, fim = 0, j = 0, i, tam = 0, contador = 0, resposta = 0; // Variável 'resposta' iniciando com valor 0, que significa que o parâmetro é valido
+
     for (i = 0; i < strlen(linha); i++) // Analisando se o primeiro numero é um numero válido
     {
-        if ((linha[i] == ' ' || linha[i] == '\n') && inicio != 0)
+        if ((linha[i] == '\0') && inicio != 0)
         {
             fim = i;
             break;
@@ -326,7 +336,7 @@ int verifica_pos(char linha[], int quantidade) // Verificando se é um número n
     j = 0;
     for (i = fim-1; i < strlen(linha); i++) // No caso de o comando apresentar dois numeros válidos
     {
-        if ((linha[i] == ' ' || linha[i] == '\n') && inicio != 0)
+        if ((linha[i] == '\0') && inicio != 0)
         {
             fim = i;
             break;
@@ -356,33 +366,28 @@ int verifica_pos(char linha[], int quantidade) // Verificando se é um número n
     return resposta;
 }
 
-int verifica_offset(char linha[]) // Verificando se é inteiro
+int verifica_offset(char linha[], int Nlinha, int maxlinhas) // Verificando se é inteiro
 {
     int inicio = 0, fim = 0, j = 0, i, tam = 0, contador = 0, resposta = 0;
     for (i = 0; i < strlen(linha); i++) // Pulando o primeiro numero;
     {
-        if ((linha[i] == ' ' || linha[i] == '\n') && inicio != 0)
+        if (linha[i] == ' ' && inicio != 0)
         {
-            fim = i;
+            inicio++;
             break;
         }
         if (linha[i] == ' ')
         {
-            inicio = i+1;
+            inicio = i + 2;
             continue;
         }
     }
-    for (i = fim-1; i < strlen(linha); i++) // Analisando o segundo numero(offset), que deve ser inteiro;
+    for (i = inicio; i < strlen(linha); i++) // Analisando o segundo numero(offset), que deve ser inteiro;
     {
-        if ((linha[i] == ' ' || linha[i] == '\n') && inicio != 0)
+        if (linha[i] != ' ' && linha[i+1] == '\0')
         {
             fim = i;
             break;
-        }
-        if (linha[i] == ' ')
-        {
-            inicio = i+1;
-            continue;
         }
     }
     tam = fim - inicio;
@@ -402,19 +407,21 @@ int verifica_offset(char linha[]) // Verificando se é inteiro
             continue;
         resposta = 2; // Erro no segundo parâmetro
     }
+    char *endptr;
+    int numero = strtol(numero2, &endptr, 10);
+    if (numero < -Nlinha || numero > (maxlinhas-Nlinha))
+        resposta = 3;
     return resposta;
 }
 
 int conta_parametro(char linha[], int quantidade)
 {
-    char vetor[strlen(linha)];
     int contador = 0;
     for (int i = 0; i < strlen(linha); i++)
     {
-        vetor[i] = linha[i];
-        if (vetor[i] == 10)
+        if (linha[i+1] == '\0')
             break;
-        if (vetor[i] == ' ' && vetor[i+1] != ' ')
+        else if (linha[i] == ' ')
             contador++;
     }
     if (contador == quantidade)
@@ -427,34 +434,12 @@ int conta_parametro(char linha[], int quantidade)
 
 void read(char linha[], int Nlinha, FILE *analise) // Função de cada uma das funções do compilador (read, write, jump, ...)
 {
-    int resposta, parametros;
-    resposta = verifica_pos(linha, 1);
-    if (resposta == 1)
-        fprintf(analise, "Linha %d: erro no parametro 1 'pos', que deve ser um numero natural.\n", Nlinha);
-        parametros = conta_parametro(linha, 1);
-    if (parametros == 1)
-        fprintf(analise, "Linha %d: numero de parametros excedido\n", Nlinha);
-    if (parametros == -1)
-        fprintf(analise, "Linha %d: falta de parametros necessarios\n", Nlinha);
-    if(resposta == 0 && parametros == 0)
-        fprintf(analise, "Comando read executado\n"); // Comando foi executado
+    
 }
 
 void write(char linha[], int Nlinha, FILE *analise)
 {
-    int resposta, parametros;
-    resposta = verifica_pos(linha, 1);
-    if (resposta == 1)
-        fprintf(analise, "Linha %d: erro no parametro 1 'pos', que deve ser um numero natural.\n", Nlinha);
-        parametros = conta_parametro(linha, 1);
-    if (parametros == 1)
-        fprintf(analise, "Linha %d: numero de parametros excedido\n", Nlinha);
-    if (parametros == -1)
-        fprintf(analise, "Linha %d: falta de parametros necessarios\n", Nlinha);
-    if(resposta == 0 && parametros == 0)
-        fprintf(analise, "Comando write executado\n");
-    else
-        printf("Erro no comando 'write'\n");
+    
 }
 
 void storeconst(char linha[], int Nlinha, FILE *analise)
@@ -477,120 +462,57 @@ void storeconst(char linha[], int Nlinha, FILE *analise)
     if (parametros == -1)
         fprintf(analise, "Linha %d: falta de parametros necessarios\n", Nlinha);
     if((resposta1 == 0 && resposta2 <= 1) && parametros == 0)
-        fprintf(analise, "Comando storeconst executado\n");
+        fprintf(analise, "Comando 'storeconst' executado\n");
     else
         printf("Erro no comando 'storeconst'\n");
 }
 
 void add(char linha[], int Nlinha, FILE *analise)
 {
-    int resposta, parametros;
-    resposta = verifica_pos(linha, 2);
-    if (resposta == 1)
-        fprintf(analise, "Linha %d: erro no parametro 1 'pos', que deve ser um numero natural.\n", Nlinha);
-    if (resposta == 2)
-        fprintf(analise, "Linha %d: erro no parametro 2 'pos', que deve ser um numero natural.\n", Nlinha);
-        parametros = conta_parametro(linha, 2);
-    if (parametros == 1)
-        fprintf(analise, "Linha %d: numero de parametros excedido\n", Nlinha);
-    if (parametros == -1)
-        fprintf(analise, "Linha %d: falta de parametros necessarios\n", Nlinha);
-    if(resposta == 0 && parametros == 0)
-        fprintf(analise, "Comando add executado\n");
-    else
-        printf("Erro no comando 'add'\n");
+    
 }               
 
 void sub(char linha[], int Nlinha, FILE *analise)
 {
-    int resposta, parametros;
-    resposta = verifica_pos(linha, 2);
-    if (resposta == 1)
-        fprintf(analise, "Linha %d: erro no parametro 1 'pos', que deve ser um numero natural.\n", Nlinha);
-    if (resposta == 2)
-        fprintf(analise, "Linha %d: erro no parametro 2 'pos', que deve ser um numero natural.\n", Nlinha);
-        parametros = conta_parametro(linha, 2);
-    if (parametros == 1)
-        fprintf(analise, "Linha %d: numero de parametros excedido\n", Nlinha);
-    if (parametros == -1)
-        fprintf(analise, "Linha %d: falta de parametros necessarios\n", Nlinha);
-    if(resposta == 0 && parametros == 0)
-        fprintf(analise, "Comando sub executado\n");
-    else
-        printf("Erro no comando 'sub'\n");
+    
 }
 
 void multp(char linha[], int Nlinha, FILE *analise)
 {
-    int resposta, parametros;
-    resposta = verifica_pos(linha, 2);
-    if (resposta == 1)
-        fprintf(analise, "Linha %d: erro no parametro 1 'pos', que deve ser um numero natural.\n", Nlinha);
-    if (resposta == 2)
-        fprintf(analise, "Linha %d: erro no parametro 2 'pos', que deve ser um numero natural.\n", Nlinha);
-        parametros = conta_parametro(linha, 2);
-    if (parametros == 1)
-        fprintf(analise, "Linha %d: numero de parametros excedido\n", Nlinha);
-    if (parametros == -1)
-        fprintf(analise, "Linha %d: falta de parametros necessarios\n", Nlinha);
-    if(resposta == 0 && parametros == 0)
-        fprintf(analise, "Comando mul executado\n");
-    else
-        printf("Erro no comando 'mul'\n");
+    
 }
 
 void divisao(char linha[], int Nlinha, FILE *analise)
 {
-    int resposta, parametros;
-    resposta = verifica_pos(linha, 2);
-    if (resposta == 1)
-        fprintf(analise, "Linha %d: erro no parametro 1 'pos', que deve ser um numero natural.\n", Nlinha);
-    if (resposta == 2)
-        fprintf(analise, "Linha %d: erro no parametro 2 'pos', que deve ser um numero natural.\n", Nlinha);
-        parametros = conta_parametro(linha, 2);
-    if (parametros == 1)
-        fprintf(analise, "Linha %d: numero de parametros excedido\n", Nlinha);
-    if (parametros == -1)
-        fprintf(analise, "Linha %d: falta de parametros necessarios\n", Nlinha);
-    if(resposta == 0 && parametros == 0)
-        fprintf(analise, "Comando div executado\n");
-    else
-        printf("Erro no comando 'div'\n");
+    
 }
 
-void jump(char linha[], int Nlinha, FILE *analise)
+void jump(char linha[], int Nlinha, FILE *analise, Fila *comandos) // Fazer o comando de pular ou voltar em funções
 {
     int resposta1, resposta2, parametros;
+    FilaNo *ptr = comandos->primeiro;
+    while (ptr->proximo != NULL)
+        ptr = ptr->proximo;
     resposta1 = verifica_pos(linha, 1);
     if (resposta1 == 1)
         fprintf(analise, "Linha %d: erro no parametro 1 'pos', que deve ser um numero natural.\n", Nlinha);
-    resposta2 = verifica_offset(linha);
+    resposta2 = verifica_offset(linha, Nlinha, ptr->linha);
     if (resposta2 == 2)
-        fprintf(analise, "Linha %d: erro no parametro 2 'pos', que deve ser um numero natural.\n", Nlinha);
+        fprintf(analise, "Linha %d: erro no parametro 2 'offset', que deve ser um numero natural.\n", Nlinha);
+    if (resposta2 == 3)
+        fprintf(analise, "Linha %d: offset inválido!\n", Nlinha);
     parametros = conta_parametro(linha, 2);
     if (parametros == 1)
         fprintf(analise, "Linha %d: numero de parametros excedido\n", Nlinha);
     if (parametros == -1)
         fprintf(analise, "Linha %d: falta de parametros necessarios\n", Nlinha);
     if((resposta1 == 0 && resposta2 == 0) && parametros == 0)
-        fprintf(analise, "Comando jump executado\n");
+        fprintf(analise, "Comando 'jump' executado\n");
     else
         printf("Erro no comando 'jump'\n");
 }
 
 void fstore(char linha[], int Nlinha, FILE *analise)
 {
-    int resposta, parametros;
-    resposta = verifica_pos(linha, 1);
-    if (resposta == 1)
-        fprintf(analise, "Linha %d: erro no parametro 1 'pos', que deve ser um numero natural.\n", Nlinha);
-        parametros = conta_parametro(linha, 1);
-    if (parametros == 1)
-        fprintf(analise, "Linha %d: numero de parametros excedido\n", Nlinha);
-    if (parametros == -1)
-        fprintf(analise, "Linha %d: falta de parametros necessarios\n", Nlinha);
-    if(resposta == 0 && parametros == 0)
-        fprintf(analise, "Comando store executado\n");
-    else
-        printf("Erro no comando 'store'\n");
+    
 }

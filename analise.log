@@ -1,0 +1,15 @@
+Comando 'read' executado
+Comando 'read' executado
+Comando da linha 3 nao reconhecido!
+Comando 'storeconst' executado
+Comando 'jump' executado
+Linha 6: falta de parametros necessarios
+Comando 'add' executado
+Comando da linha 8 nao reconhecido!
+Linha 9: offset inválido!
+Linha 10: offset inválido!
+Comando 'jump' executado
+Comando 'sub' executado
+Comando 'store' executado
+Comando 'write' executado
+Linha 15: falta de parametros necessarios

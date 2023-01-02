@@ -3,12 +3,18 @@
 #include <string.h>
 #include "funcoes.h"
 
-int main() {
-
+int main(int argc, char *argv[]) // Faltou solucionar alguns erros. 1- Se der espaço antes da função, o compilador fica rodando infinitamente. De resto funciona corretamente. 2- Faltou arrumar o controle do offset
+{
     Fila *comandos = fila_cria(); // Fila que vai armazenar em cada nó, uma linha do arquivo txt
-    FILE *arquivo = abrir_arquivo(); // Função que abre o documento txt. Obs.: Por algum motivo, funciona para alguns e não para outros
-    FILE *analise = fopen("C:\\Users\\2211014\\Desktop\\Estudo_de_caso_1\\analise.log", "w"); // Criando o arquivo log de análise
-    if (analise == NULL)               // Alterar o diretório do '.log' caso de erro ^
+    if (argc < 3)
+    {
+        printf("Faltam argumentos para a execucao do compilador");
+        exit(EXIT_FAILURE);
+    }
+    FILE *arquivo = abrir_arquivo(argv); // Função que abre o documento txt.
+    FILE *analise = fopen(argv[2], "w"); // Criando o arquivo log de análise
+    
+    if (analise == NULL)
     {
         printf("Erro ao abrir o arquivo '.log'");
         exit(EXIT_FAILURE);

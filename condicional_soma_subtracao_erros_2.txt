@@ -1,0 +1,16 @@
+      read  0     # este é um comentário
+read 1
+readd  2
+ storeconst 1.2 3.2  # este é um comentário
+    # esta linha só tem comentário
+jump 2 3
+# comentário nesta linha
+add 0  1 
+stores 4
+jump 3 -10
+jump 3 12 # comentário nesta linha
+    jump 3 2   # comentário
+ sub  0  1 
+store 4.5
+write 4
+# comentário no final
